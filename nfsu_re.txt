@@ -1,0 +1,156 @@
+This file contains disassembly of the checksum algorithm used by 
+NFS Underground for its profile save files.
+
+The code location was found by saving the state on the 
+"profile loaded successfully" screen using PCSX2.
+
+Then I searched the Emotion Engine memory from that save state for the 
+checksum value (last 4 bytes) of the profile save file.
+
+In the PCSX2 debugger I then put breakpoints on reading those 2 adresses.
+
+The checksum algorithm code was then soon located, see z_un_002bdef8 below.
+
+-------------------------------------------------------------------------------
+
+compares checksum with something
+0x00130c10	bnel	v0,a0,pos_00130C18
+
+TRY BAD CHECKSUM IN SAVE TO DIFFERENTIATE IN DISASM
+
+-------------------------------------------------------------------------------
+
+IN
+a0: 0x00532f00
+(a1,a2,a3 overwritten before read)
+a0[0x0]: 0
+a0[0x4]: 0x3d
+a0[0x8]: 0
+a0[0xc]: 0x0100b640
+
+OUT
+none
+(v0 has a0[0x4] or bool, v1 has last(?) byte copied)
+
+if a0[0x0] is 0
+	copy a0[0x4] bytes from a0 + 0x50 to a0[0xc]
+else
+	copy a0[0x0] bytes from a0 + 0x10 to a0[0x8]
+end
+
+z_un_003be068:
+
+	lui	v0,0x2000
+	or	a0,v0
+	lw	v0,(a0)
+	beqzl	v0,pos_003BE0B4
+	lw	v0,0x4(a0)
+	lw	a2,0x8(a0)
+	blez	v0,pos_003BE0B0
+	dmove	a1,zero
+	addiu	a3,a0,0x10
+	nop	
+
+pos_003BE090:
+
+	addu	v0,a3,a1
+	lbu	v1,(v0)
+	addiu	a1,0x1
+	sb	v1,(a2)
+	lw	v0,(a0)
+	slt	v0,a1,v0
+	bnez	v0,pos_003BE090
+	addiu	a2,0x1
+
+pos_003BE0B0:
+
+	lw	v0,0x4(a0)
+
+pos_003BE0B4:
+
+	beqz	v0,pos_003BE0F0
+	nop	
+	lw	a2,0xC(a0)
+	blez	v0,pos_003BE0F0
+	dmove	a1,zero
+	addiu	a3,a0,0x50
+	nop	
+
+pos_003BE0D0:
+
+	addu	v0,a3,a1
+	lbu	v1,(v0)
+	addiu	a1,0x1
+	sb	v1,(a2)
+	lw	v0,0x4(a0)
+	slt	v0,a1,v0
+	bnez	v0,pos_003BE0D0
+	addiu	a2,0x1
+
+pos_003BE0F0:
+
+	jr	ra
+	nop	
+
+-------------------------------------------------------------------------------
+
+IN
+a0: 0x00ffbcc0 (a1 bytes before checksum at 0x0100b679)
+a1: 0xf9b9 63929 (TEST.ps2 er 63933)
+a2: 0xffffffffffffffff -1
+a3:
+
+OUT
+v0:
+v1:
+
+z_un_002bdef8:
+
+	dmove	a3,a1
+	dmove	t1,a0
+	blez	a3,pos_002BDF44
+	dmove	t0,zero
+	lui	t2,0x0041
+	nop	
+
+pos_002BDF10:
+
+	lbu	v0,(t1)
+	srl	v1,a2,0x18
+	addiu	a1,t2,-0x1968
+	sll	a2,a2,0x08
+	xor	v1,v0
+	addiu	t0,0x1
+	sll	v1,v1,0x02
+	addiu	t1,0x1
+	addu	v1,a1
+	slt	a0,t0,a3
+	lw	v0,(v1)
+	bnez	a0,pos_002BDF10
+	xor	a2,v0
+
+pos_002BDF44:
+
+	blez	a3,pos_002BDF7C
+	lui	t2,0x0041
+	nop	
+
+pos_002BDF50:
+
+	andi	v1,a3,0x00FF
+	srl	v0,a2,0x18
+	xor	v0,v1
+	addiu	a0,t2,-0x1968
+	sll	v0,v0,0x02
+	sll	a1,a2,0x08
+	addu	v0,a0
+	sra	a3,0x08
+	lw	v1,(v0)
+	bgtz	a3,pos_002BDF50
+	xor	a2,a1,v1
+
+pos_002BDF7C:
+
+	jr	ra
+	nor	v0,zero,a2
+	nop	
